@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 3
+names: ['fence', 'person-climbing-fence', 'person-standing']
+
+roboflow:
+  workspace: ai-builders-ymp5v
+  project: climbing-fence-ynser
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/ai-builders-ymp5v/climbing-fence-ynser/dataset/1
