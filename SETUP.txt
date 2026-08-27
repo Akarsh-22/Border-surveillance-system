@@ -1,0 +1,198 @@
+================================================================================
+IBVAP — INTELLIGENT BORDER VIDEO ANALYTICS PLATFORM
+AI AGENT SETUP INSTRUCTIONS
+================================================================================
+This file is written for an AI coding assistant (Claude, GitHub Copilot,
+ChatGPT, etc.) to read and automatically set up this project on a new
+machine. If you are an AI assistant reading this: follow the steps below
+in order, run the commands in the user's terminal, and verify each step
+before moving to the next.
+
+================================================================================
+1. PROJECT SUMMARY
+================================================================================
+Name: IBVAP (Intelligent Border Video Analytics Platform)
+Purpose: AI-driven software layer that turns existing CCTV footage into an
+         intelligent surveillance system — human/vehicle detection, virtual
+         fence intrusion detection, and fence-climbing behavior detection —
+         without needing specialized surveillance hardware.
+Context: Built as a prototype for Smart India Hackathon 2026 (SIH2026).
+Repo name on GitHub: Border-surveillance-system
+
+================================================================================
+2. SYSTEM REQUIREMENTS
+================================================================================
+- OS: Windows 10/11 with WSL2 (Ubuntu 24.04 recommended), OR native Linux,
+      OR macOS. Any OS with Python 3.10+ works.
+- Python: 3.10 or higher (developed/tested on Python 3.12)
+- RAM: minimum 8 GB (16 GB recommended — model training is RAM-heavy on CPU)
+- Disk space: ~2 GB free (for dependencies + YOLO model weights + dataset)
+- GPU: NOT required. Runs on CPU (slower during training, fine for inference).
+       If an NVIDIA GPU with CUDA is available, training will be much faster.
+- Internet connection: required on first run (downloads YOLOv8 pretrained
+  weights automatically, ~6 MB)
+
+================================================================================
+3. REQUIRED TOOLS (install if missing)
+================================================================================
+- git
+- python3 (with venv module — usually built-in)
+- pip
+- VS Code (recommended editor) with the "WSL" extension if on Windows
+
+Check with:
+    git --version
+    python3 --version
+    pip3 --version
+
+================================================================================
+4. SETUP STEPS (run in order)
+================================================================================
+
+Step 1 — Clone the repository:
+    git clone https://github.com/Akshattomar2/Border-surveillance-system.git
+    cd Border-surveillance-system
+
+Step 2 — Create and activate a virtual environment:
+    python3 -m venv venv
+    source venv/bin/activate        # On Windows (native, not WSL): venv\Scripts\activate
+
+    IMPORTANT: The venv must be re-activated every time a new terminal
+    session is opened. It does NOT persist automatically. If any command
+    below fails with "command not found", run the activate command again
+    and confirm the prompt shows "(venv)" at the start.
+
+Step 3 — Install dependencies:
+    pip install -r requirements.txt
+
+    This installs: opencv-python, ultralytics, streamlit, numpy, pandas
+
+Step 4 — Verify installation:
+    python3 -c "import cv2, ultralytics, streamlit, numpy, pandas; print('All dependencies OK')"
+
+Step 5 — Add a test video:
+    Place any CCTV-style or street footage video in the project root,
+    named exactly "test.mp4". Alternatively, the Streamlit dashboard
+    supports uploading a video directly through the UI — this step can
+    be skipped if the collaborator will upload a video manually.
+
+Step 6 — (Optional) Train the custom fence-detection model:
+    Only needed if retraining from scratch. A pretrained fallback model
+    is used automatically if no custom model exists.
+
+    yolo detect train data=data.yaml model=yolov8n.pt epochs=50 imgsz=640 name=fence_model batch=4
+
+    NOTE: On low-RAM machines, keep batch=4 or lower to avoid crashes.
+    Training takes 20–40 minutes on CPU, ~5 minutes on GPU.
+
+    After training completes, find the output at:
+        runs/detect/<run_name>/weights/best.pt
+
+    IMPORTANT: If a folder named "fence_model" already exists, Ultralytics
+    will auto-increment the name (fence_model2, fence_model3, etc.). Check
+    the actual folder name with:
+        ls runs/detect/
+
+    Then update detector.py — find the line:
+        CUSTOM_MODEL_PATH = "runs/detect/fence_model/weights/best.pt"
+    and change "fence_model" to match the actual folder name created.
+
+Step 7 — Run the dashboard:
+    streamlit run app.py
+
+    This opens a browser tab (usually http://localhost:8501). The sidebar
+    will indicate whether a "Custom trained model" or "Pretrained YOLOv8
+    (fallback)" is active.
+
+================================================================================
+5. PROJECT FILE STRUCTURE
+================================================================================
+Border-surveillance-system/
+├── detector.py          — Core detection logic (YOLO inference, virtual
+│                           fence / zone logic, alert logging)
+├── app.py                — Interactive Streamlit dashboard (play/pause/
+│                           restart/scrub/upload controls)
+├── requirements.txt      — Python dependencies
+├── data.yaml              — YOLO dataset config (train/val/test paths,
+│                           class names) — used only for training
+├── train/, valid/, test/  — Dataset image + label folders (YOLO format)
+├── runs/detect/           — Auto-generated training output (model weights,
+│                           metrics, graphs) — created after training
+├── alerts.csv             — Auto-generated log of detected intrusion events
+├── snapshots/              — Auto-generated snapshot images of alerts
+├── venv/                   — Python virtual environment (NOT committed to git)
+└── README.md                — Project overview and quick start guide
+
+================================================================================
+6. KEY CONVENTIONS / RULES FOR THIS PROJECT
+================================================================================
+1. Always activate the venv before running any Python/pip/yolo/streamlit
+   command: `source venv/bin/activate`
+
+2. Do NOT commit these to git (already covered by .gitignore, verify it
+   exists and includes them):
+       venv/
+       runs/
+       snapshots/
+       *.pt
+       alerts.csv
+       __pycache__/
+       *.zip
+
+3. detector.py automatically switches between two modes:
+   - "custom" mode: used if CUSTOM_MODEL_PATH (a trained best.pt) exists.
+     Classes: fence, person-climbing-fence, person-standing. Alerts fire
+     directly when "person-climbing-fence" is detected.
+   - "pretrained" mode: fallback using yolov8n.pt (COCO classes). Alerts
+     fire when a detected person/vehicle center point falls inside the
+     manually-defined VIRTUAL_FENCE_ZONE polygon.
+
+4. When adding a new dataset for training, it must be in YOLO format
+   (train/valid/test folders each with images/ and labels/ subfolders,
+   plus a data.yaml describing paths and class names).
+
+5. Never hardcode absolute file paths — use relative paths from the
+   project root so the project runs identically on any collaborator's
+   machine.
+
+6. Commit messages should be descriptive (e.g. "Add ANPR module", not
+   "update" or "fix").
+
+7. Before pushing changes, always pull first to avoid merge conflicts:
+       git pull origin main
+   If a conflict occurs in a text file (e.g. README.md), resolve it using
+   VS Code's built-in merge editor (Source Control panel → conflicted
+   file → Accept Current/Incoming/Both Changes) rather than manually
+   editing conflict markers.
+
+================================================================================
+7. TROUBLESHOOTING (common issues)
+================================================================================
+- "yolo: command not found" → venv is not activated. Run:
+      source venv/bin/activate
+
+- "ModuleNotFoundError" for any package → dependencies not installed, run:
+      pip install -r requirements.txt
+
+- VS Code / WSL keeps disconnecting during training → likely low RAM.
+  Create/edit a `.wslconfig` file in the Windows user home folder
+  (%UserProfile%\.wslconfig) with:
+      [wsl2]
+      memory=6GB
+      processors=4
+  Then run `wsl --shutdown` in PowerShell and reopen.
+
+- Git push rejected ("fetch first" / "non-fast-forward") → someone else's
+  changes exist on the remote. Run:
+      git pull origin main --allow-unrelated-histories
+  Resolve any conflicts, then:
+      git add .
+      git commit -m "Merge remote changes"
+      git push -u origin main
+
+================================================================================
+8. CONTACT / OWNERSHIP
+================================================================================
+Project owner: Akshat Singh Tomar (GitHub: Akshattomar2)
+Built for: Smart India Hackathon 2026
+================================================================================
