@@ -1,82 +1,103 @@
-"""
-app.py
-Streamlit dashboard for the IBVAP prototype.
-Wraps detector.py's logic so you can see the annotated video feed
-and live alert log in a browser instead of an OpenCV popup window.
+"""Streamlit dashboard for multi-video border surveillance analysis."""
 
-Run with:
-    streamlit run app.py
-"""
-
-import time
+import hashlib
 import os
+import re
+import time
+from pathlib import Path
+
 import cv2
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 
-from detector import (
-    VIDEO_SOURCE, MODEL_NAME, ALERT_LOG_FILE,
-    process_frame, ensure_dirs
-)
+from detector import ALERT_LOG_FILE, MODEL_NAME, ensure_dirs, process_frame
+
+PROJECT_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = PROJECT_DIR / "uploads"
+DEFAULT_VIDEO = PROJECT_DIR / "test.mp4"
 
 st.set_page_config(page_title="IBVAP - Border Video Analytics", layout="wide")
 st.title("🛡️ IBVAP — Intelligent Border Video Analytics Platform")
-st.caption("Prototype dashboard: human/vehicle detection + virtual fence intrusion alerts")
-
+st.caption("Upload one or more videos for detection, fence alerts, and night-movement analysis.")
 ensure_dirs()
+UPLOAD_DIR.mkdir(exist_ok=True)
 
-col1, col2 = st.columns([2, 1])
 
-with col1:
-    st.subheader("Live Feed")
-    video_placeholder = st.empty()
+@st.cache_resource
+def load_model():
+    return YOLO(MODEL_NAME)
 
-with col2:
-    st.subheader("🚨 Alerts")
-    alerts_placeholder = st.empty()
 
-start = st.sidebar.button("Start Analysis")
-stop = st.sidebar.button("Stop")
+def save_upload(uploaded_file):
+    data = uploaded_file.getvalue()
+    digest = hashlib.sha256(data).hexdigest()[:10]
+    original = Path(uploaded_file.name)
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", original.stem)[:80] or "video"
+    destination = UPLOAD_DIR / f"{safe_stem}_{digest}{original.suffix.lower()}"
+    if not destination.exists():
+        destination.write_bytes(data)
+    return destination
 
-if "running" not in st.session_state:
-    st.session_state.running = False
 
-if start:
-    st.session_state.running = True
-if stop:
-    st.session_state.running = False
+def show_alerts():
+    if os.path.exists(ALERT_LOG_FILE):
+        alerts = pd.read_csv(ALERT_LOG_FILE)
+        st.dataframe(alerts.tail(10).iloc[::-1], width="stretch")
 
-if st.session_state.running:
-    model = YOLO(MODEL_NAME)
-    cap = cv2.VideoCapture(VIDEO_SOURCE)
+
+def analyze_video(video_path, model, video_placeholder, progress_placeholder):
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        st.error(f"Could not open video: {video_path.name}")
+        return
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     frame_count = 0
     alert_cooldown = {}
-
-    while cap.isOpened() and st.session_state.running:
+    motion_state = {}
+    while True:
         ret, frame = cap.read()
         if not ret:
-            st.warning("Video ended or source unavailable.")
             break
-
         frame_count += 1
         if frame_count % 3 != 0:
             continue
-
-        annotated = process_frame(model, frame, frame_count, alert_cooldown)
-        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-        video_placeholder.image(annotated_rgb, channels="RGB", use_container_width=True)
-
-        if os.path.exists(ALERT_LOG_FILE):
-            df = pd.read_csv(ALERT_LOG_FILE)
-            alerts_placeholder.dataframe(df.tail(10)[::-1], use_container_width=True)
-
-        time.sleep(0.03)  # small delay so UI doesn't overload
-
+        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state)
+        video_placeholder.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), width="stretch")
+        if total_frames:
+            progress_placeholder.progress(min(frame_count / total_frames, 1.0), text=f"{video_path.name}: frame {frame_count}/{total_frames}")
+        time.sleep(0.01)
     cap.release()
+    progress_placeholder.progress(1.0, text=f"Finished: {video_path.name}")
+
+
+uploaded_files = st.sidebar.file_uploader(
+    "Upload videos", type=["mp4", "avi", "mov", "mkv"], accept_multiple_files=True,
+    help="Select multiple CCTV or night videos at once.",
+)
+video_paths = {}
+uploaded_names = []
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        video_paths[uploaded_file.name] = save_upload(uploaded_file)
+        uploaded_names.append(uploaded_file.name)
+if DEFAULT_VIDEO.exists():
+    video_paths.setdefault("Default: test.mp4", DEFAULT_VIDEO)
+
+if not video_paths:
+    st.info("Upload one or more videos in the sidebar to begin.")
 else:
-    st.info("Click 'Start Analysis' in the sidebar to begin processing the video.")
-    if os.path.exists(ALERT_LOG_FILE):
-        df = pd.read_csv(ALERT_LOG_FILE)
-        st.subheader("Past Alerts")
-        st.dataframe(df[::-1], use_container_width=True)
+    selected_name = st.sidebar.selectbox("Video to analyze", list(video_paths))
+    analyze_selected = st.sidebar.button("Analyze selected video", type="primary")
+    analyze_all = st.sidebar.button("Analyze all uploaded videos")
+    st.subheader("Live Feed")
+    video_placeholder = st.empty()
+    progress_placeholder = st.empty()
+    if analyze_selected or analyze_all:
+        model = load_model()
+        paths = ([video_paths[name] for name in uploaded_names] or [DEFAULT_VIDEO]) if analyze_all else [video_paths[selected_name]]
+        for path in paths:
+            analyze_video(path, model, video_placeholder, progress_placeholder)
+    st.subheader("🚨 Recent Alerts")
+    show_alerts()
