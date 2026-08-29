@@ -4,3 +4,6 @@ streamlit
 numpy
 pandas
 lap
+fastapi
+uvicorn[standard]
+python-multipart
