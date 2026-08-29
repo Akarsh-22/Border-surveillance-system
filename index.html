@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBVAP | THE SENTINELS</title>
+<link rel="icon" href="sentinels_logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand-dark: #0E2418;
+    --brand-green: #1B3A2B;
+    --brand-gold: #D4AF37;
+    --brand-cream: #F2EAD3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(180deg, #0B1712 0%, #10241A 100%);
+    color: var(--brand-cream);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 26px;
+    background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-dark) 100%);
+    border-radius: 14px;
+    border: 1px solid var(--brand-gold);
+    margin-bottom: 22px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  }
+  .header img { width: 60px; height: 60px; object-fit: contain; }
+  .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--brand-cream); }
+  .header p { margin: 2px 0 0; font-size: 0.8rem; letter-spacing: 2px; color: var(--brand-gold); text-transform: uppercase; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .stat-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(212,175,55,0.35);
+    border-radius: 12px;
+    padding: 14px 18px;
+    text-align: center;
+  }
+  .stat-label { color: #B8C4BC; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+  .stat-value { color: var(--brand-gold); font-size: 1.4rem; font-weight: 700; font-family: 'Space Mono', monospace; }
+
+  .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(212,175,55,0.25);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .panel h3 {
+    margin-top: 0; font-size: 1.05rem; color: var(--brand-cream);
+    border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 8px;
+  }
+
+  #videoFrame {
+    width: 100%; border-radius: 10px; background: #000;
+    display: block; aspect-ratio: 16/9; object-fit: contain;
+  }
+
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+  button, select {
+    background: linear-gradient(135deg, var(--brand-green), var(--brand-dark));
+    color: var(--brand-gold);
+    border: 1px solid var(--brand-gold);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+  }
+  button:hover { background: var(--brand-gold); color: var(--brand-dark); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  select { width: 100%; }
+
+  input[type="range"] {
+    width: 100%; margin-top: 14px; accent-color: var(--brand-gold);
+  }
+  .time-label { font-size: 0.8rem; color: #B8C4BC; margin-top: 6px; font-family: 'Space Mono', monospace; }
+
+  .video-select-row { margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .video-select-row label { font-size: 0.8rem; color: #B8C4BC; white-space: nowrap; }
+  .upload-row { margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type="file"] { color: var(--brand-cream); font-size: 0.85rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid rgba(212,175,55,0.15); text-align: left; }
+  th { color: var(--brand-gold); text-transform: uppercase; font-size: 0.68rem; letter-spacing: 1px; }
+  td { color: var(--brand-cream); }
+  .alerts-wrap { max-height: 480px; overflow-y: auto; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+  .badge-live { background: rgba(212,175,55,0.15); color: var(--brand-gold); border: 1px solid var(--brand-gold); }
+  .badge-paused { background: rgba(180,180,180,0.1); color: #B8C4BC; border: 1px solid #B8C4BC; }
+  .badge-night { background: rgba(255,165,0,0.15); color: #FFA500; border: 1px solid #FFA500; }
+
+  .empty-note { color: #8A9A91; font-size: 0.85rem; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <img src="sentinels_logo.png" onerror="this.style.display='none'">
+    <div>
+      <h1>IBVAP — Intelligent Border Video Analytics Platform</h1>
+      <p>Built by THE SENTINELS</p>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value" id="statStatus"><span class="badge badge-paused">PAUSED</span></div></div>
+    <div class="stat-card"><div class="stat-label">Total Alerts</div><div class="stat-value" id="statAlerts">0</div></div>
+    <div class="stat-card"><div class="stat-label">Model</div><div class="stat-value" id="statModel" style="font-size:1rem;">—</div></div>
+    <div class="stat-card"><div class="stat-label">Frame Position</div><div class="stat-value" id="statFrame">0/0</div></div>
+  </div>
+
+  <div class="main-grid">
+    <div class="panel">
+      <h3>🎥 Live Feed</h3>
+      <img id="videoFrame" src="" alt="Video feed will appear here">
+
+      <div class="controls">
+        <button id="btnPlay">▶️ Play</button>
+        <button id="btnPause">⏸️ Pause</button>
+        <button id="btnRestart">⏮️ Restart</button>
+        <button id="btnClear">🗑️ Clear Alerts</button>
+      </div>
+
+      <input type="range" id="seekSlider" min="0" max="100" value="0">
+      <div class="time-label" id="timeLabel">Frame 0 / 0</div>
+
+      <div class="video-select-row">
+        <label for="videoSelect">📁 Video:</label>
+        <select id="videoSelect"></select>
+      </div>
+      <div class="upload-row">
+        <input type="file" id="videoUpload" accept="video/*">
+        <span id="uploadStatus" style="font-size:0.8rem; color:#B8C4BC;"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🚨 Alerts Log</h3>
+      <div class="alerts-wrap">
+        <table id="alertsTable">
+          <thead><tr><th>Time</th><th>Type</th><th>Class</th><th>Conf</th></tr></thead>
+          <tbody id="alertsBody"></tbody>
+        </table>
+        <div class="empty-note" id="emptyAlertsNote">No alerts yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/api";
+let videoId = "default";
+let totalFrames = 1;
+let fps = 15;
+let currentFrame = 0;
+let playing = false;
+let playTimer = null;
+
+const videoFrame = document.getElementById("videoFrame");
+const seekSlider = document.getElementById("seekSlider");
+const timeLabel = document.getElementById("timeLabel");
+const statStatus = document.getElementById("statStatus");
+const statAlerts = document.getElementById("statAlerts");
+const statModel = document.getElementById("statModel");
+const statFrame = document.getElementById("statFrame");
+const uploadStatus = document.getElementById("uploadStatus");
+const videoSelect = document.getElementById("videoSelect");
+
+async function loadModelInfo() {
+  const res = await fetch(`${API}/model_info`);
+  const data = await res.json();
+  statModel.textContent = data.model_name || "YOLOv8";
+}
+
+async function loadVideoList(selectVideoId) {
+  const res = await fetch(`${API}/videos`);
+  const videos = await res.json();
+  videoSelect.innerHTML = "";
+  for (const v of videos) {
+    const opt = document.createElement("option");
+    opt.value = v.video_id;
+    opt.textContent = v.name;
+    videoSelect.appendChild(opt);
+  }
+  if (selectVideoId) videoSelect.value = selectVideoId;
+}
+
+async function loadVideoInfo() {
+  const res = await fetch(`${API}/video_info/${videoId}`);
+  const data = await res.json();
+  totalFrames = data.total_frames;
+  fps = data.fps || 15;
+  seekSlider.max = Math.max(totalFrames - 1, 1);
+  updateTimeLabel();
+}
+
+function updateTimeLabel() {
+  timeLabel.textContent = `Frame ${currentFrame} / ${totalFrames}  •  ~${(currentFrame / fps).toFixed(1)}s / ${(totalFrames / fps).toFixed(1)}s`;
+  statFrame.textContent = `${currentFrame}/${totalFrames}`;
+  seekSlider.value = currentFrame;
+}
+
+async function showFrame(idx, logAlerts) {
+  videoFrame.src = `${API}/frame/${videoId}/${idx}?log_alerts=${logAlerts}&t=${Date.now()}`;
+  currentFrame = idx;
+  updateTimeLabel();
+}
+
+async function refreshAlerts() {
+  const res = await fetch(`${API}/alerts?limit=50`);
+  const rows = await res.json();
+  statAlerts.textContent = rows.length;
+  const body = document.getElementById("alertsBody");
+  const emptyNote = document.getElementById("emptyAlertsNote");
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    emptyNote.style.display = "block";
+  } else {
+    emptyNote.style.display = "none";
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      const isNight = r.event_type === "NIGHT_MOVEMENT";
+      const typeLabel = isNight
+        ? `<span class="badge badge-night">NIGHT</span>`
+        : r.event_type;
+      tr.innerHTML = `<td>${(r.timestamp || "").split("_")[1] || r.timestamp}</td><td>${typeLabel}</td><td>${r.object_class}</td><td>${r.confidence}</td>`;
+      body.appendChild(tr);
+    }
+  }
+}
+
+function setStatus(isPlaying) {
+  statStatus.innerHTML = isPlaying
+    ? '<span class="badge badge-live">LIVE ANALYSIS</span>'
+    : '<span class="badge badge-paused">PAUSED</span>';
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  setStatus(true);
+  const intervalMs = Math.max(1000 / fps, 60);
+  playTimer = setInterval(async () => {
+    if (currentFrame >= totalFrames - 1) {
+      pause();
+      return;
+    }
+    currentFrame += 1;
+    await showFrame(currentFrame, true);
+    if (currentFrame % 5 === 0) refreshAlerts();
+  }, intervalMs);
+}
+
+function pause() {
+  playing = false;
+  setStatus(false);
+  if (playTimer) clearInterval(playTimer);
+  refreshAlerts();
+}
+
+function restart() {
+  pause();
+  currentFrame = 0;
+  showFrame(0, false);
+}
+
+document.getElementById("btnPlay").addEventListener("click", play);
+document.getElementById("btnPause").addEventListener("click", pause);
+document.getElementById("btnRestart").addEventListener("click", restart);
+
+document.getElementById("btnClear").addEventListener("click", async () => {
+  await fetch(`${API}/alerts`, { method: "DELETE" });
+  refreshAlerts();
+});
+
+seekSlider.addEventListener("input", async (e) => {
+  if (playing) pause();
+  const idx = parseInt(e.target.value, 10);
+  await showFrame(idx, false);
+});
+
+videoSelect.addEventListener("change", async (e) => {
+  pause();
+  videoId = e.target.value;
+  currentFrame = 0;
+  await loadVideoInfo();
+  await showFrame(0, false);
+  uploadStatus.textContent = "";
+});
+
+document.getElementById("videoUpload").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pause();
+  uploadStatus.textContent = "Uploading...";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+  const data = await res.json();
+
+  videoId = data.video_id;
+  totalFrames = data.total_frames;
+  fps = data.fps || 15;
+  currentFrame = 0;
+  seekSlider.max = Math.max(totalFrames - 1, 1);
+  uploadStatus.textContent = `Using: ${data.filename}`;
+
+  await loadVideoList(videoId);
+  await showFrame(0, false);
+});
+
+// Initial load
+(async () => {
+  await loadModelInfo();
+  await loadVideoList("default");
+  await loadVideoInfo();
+  await showFrame(0, false);
+  await refreshAlerts();
+})();
+</script>
+</body>
+</html>
