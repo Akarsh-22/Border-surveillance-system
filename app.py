@@ -12,6 +12,7 @@ import streamlit as st
 from ultralytics import YOLO
 
 from detector import ALERT_LOG_FILE, MODEL_NAME, ensure_dirs, process_frame
+from alpr import get_alpr
 
 PROJECT_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = PROJECT_DIR / "uploads"
@@ -27,6 +28,11 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 @st.cache_resource
 def load_model():
     return YOLO(MODEL_NAME)
+
+
+@st.cache_resource
+def load_alpr():
+    return get_alpr()
 
 
 def save_upload(uploaded_file):
@@ -46,7 +52,7 @@ def show_alerts():
         st.dataframe(alerts.tail(10).iloc[::-1], width="stretch")
 
 
-def analyze_video(video_path, model, video_placeholder, progress_placeholder):
+def analyze_video(video_path, model, alpr_model, video_placeholder, progress_placeholder):
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         st.error(f"Could not open video: {video_path.name}")
@@ -56,6 +62,7 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
     frame_count = 0
     alert_cooldown = {}
     motion_state = {}
+    plate_cooldown = {}
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -63,7 +70,7 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
         frame_count += 1
         if frame_count % 3 != 0:
             continue
-        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state)
+        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state, alpr_model, plate_cooldown)
         video_placeholder.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), width="stretch")
         if total_frames:
             progress_placeholder.progress(min(frame_count / total_frames, 1.0), text=f"{video_path.name}: frame {frame_count}/{total_frames}")
@@ -96,8 +103,9 @@ else:
     progress_placeholder = st.empty()
     if analyze_selected or analyze_all:
         model = load_model()
+        alpr_model = load_alpr()
         paths = ([video_paths[name] for name in uploaded_names] or [DEFAULT_VIDEO]) if analyze_all else [video_paths[selected_name]]
         for path in paths:
-            analyze_video(path, model, video_placeholder, progress_placeholder)
+            analyze_video(path, model, alpr_model, video_placeholder, progress_placeholder)
     st.subheader("🚨 Recent Alerts")
     show_alerts()
