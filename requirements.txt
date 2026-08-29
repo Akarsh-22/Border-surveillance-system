@@ -1,5 +1,6 @@
-opencv-python
+opencv-python<5
 ultralytics
 streamlit
 numpy
 pandas
+lap

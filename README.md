@@ -31,15 +31,17 @@ Advanced features like facial recognition, ANPR, and intrusion detection usually
 
 | Capability | Status |
 |---|:---:|
-| 👤 Human & vehicle detection | ✅ |
+| 👤 Human & vehicle detection + tracking | ✅ |
 | 🚧 Virtual fence / intrusion detection | ✅ |
 | 🧗 Custom-trained fence-climbing detection (YOLOv8) | ✅ |
+| 🙂 Face detection (identity recognition not enabled) | ✅ |
+| ✅ Authorized-person enrollment and face matching | ✅ |
+| ⚠️ Suspicious activity / loitering heuristic | ✅ |
+| 🌙 Night-time movement detection | ✅ |
 | 📊 Real-time alert logging (CSV + snapshots) | ✅ |
-| 🎮 Interactive dashboard — play / pause / scrub / re-analyze | ✅ |
-| 📹 Upload any video for on-demand analysis | ✅ |
+| 📹 Multi-video upload and sequential analysis | ✅ |
 | 🚗 Automatic Number Plate Recognition (ANPR) | 🔜 Planned |
-| 🌙 Night-time movement detection | 🔜 Planned |
-| 🧍 Face recognition | 🔜 Planned |
+| 🧍 Advanced face recognition / liveness controls | 🔜 Planned |
 
 ---
 

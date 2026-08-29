@@ -7,11 +7,15 @@ import time
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 
-from detector import ALERT_LOG_FILE, MODEL_NAME, ensure_dirs, process_frame
+from detector import (
+    ALERT_LOG_FILE, MODEL_NAME, detect_faces, ensure_dirs, face_embedding,
+    load_authorized_people, process_frame, save_authorized_person,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = PROJECT_DIR / "uploads"
@@ -56,6 +60,7 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
     frame_count = 0
     alert_cooldown = {}
     motion_state = {}
+    authorized_people = load_authorized_people()
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -63,7 +68,7 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
         frame_count += 1
         if frame_count % 3 != 0:
             continue
-        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state)
+        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state, authorized_people)
         video_placeholder.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), width="stretch")
         if total_frames:
             progress_placeholder.progress(min(frame_count / total_frames, 1.0), text=f"{video_path.name}: frame {frame_count}/{total_frames}")
@@ -76,6 +81,42 @@ uploaded_files = st.sidebar.file_uploader(
     "Upload videos", type=["mp4", "avi", "mov", "mkv"], accept_multiple_files=True,
     help="Select multiple CCTV or night videos at once.",
 )
+
+with st.sidebar.expander("Add person details"):
+    st.caption("Enroll only people who have given permission. Their face embeddings stay local.")
+    person_name = st.text_input("Full name")
+    person_id = st.text_input("Person ID")
+    person_role = st.text_input("Role / unit")
+    person_photos = st.file_uploader(
+        "Face photos (1–5 clear photos)", type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True, key="person_photos",
+    )
+    if st.button("Save authorized person"):
+        if not person_name.strip() or not person_id.strip() or not person_photos:
+            st.error("Name, ID, and at least one face photo are required.")
+        else:
+            embeddings = []
+            for photo in person_photos[:5]:
+                image = cv2.imdecode(np.frombuffer(photo.getvalue(), np.uint8), cv2.IMREAD_COLOR)
+                detections = [] if image is None else detect_faces(image)
+                if len(detections) != 1:
+                    continue
+                embedding = face_embedding(image, detections[0])
+                if embedding:
+                    embeddings.append(embedding)
+            if not embeddings:
+                st.error("No single clear face was found. Upload a closer, well-lit face photo.")
+            else:
+                average = np.mean(np.array(embeddings), axis=0)
+                save_authorized_person({
+                    "person_id": person_id.strip(), "name": person_name.strip(),
+                    "role": person_role.strip(), "embedding": average.tolist(),
+                })
+                st.success(f"Saved {person_name.strip()} using {len(embeddings)} photo(s).")
+
+    enrolled = load_authorized_people()
+    if enrolled:
+        st.write("Enrolled:", ", ".join(p["name"] for p in enrolled))
 video_paths = {}
 uploaded_names = []
 if uploaded_files:

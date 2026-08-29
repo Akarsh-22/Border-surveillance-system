@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pt
+alerts.csv
+snapshots/
+runs/
+.ultralytics/
+.tmp/
+uploads/
+test-media/
+authorized_people.json
