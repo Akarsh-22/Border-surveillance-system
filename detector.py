@@ -21,6 +21,9 @@ from ultralytics import YOLO
 VIDEO_SOURCE = "test.mp4"          # change to 0 for webcam, or an RTSP url for real CCTV
 MODEL_NAME = "yolov8n.pt"          # smallest/fastest YOLOv8 model, auto-downloads first run
 CONFIDENCE_THRESHOLD = 0.4
+NIGHT_LUMA_THRESHOLD = 70       # mean grayscale brightness below this = low light
+MOTION_PIXEL_THRESHOLD = 0.01   # fraction of changed pixels needed for movement
+NIGHT_ALERT_COOLDOWN = 10       # seconds between night movement alerts
 ALERT_LOG_FILE = "alerts.csv"
 SNAPSHOT_DIR = "snapshots"
 
@@ -68,10 +71,46 @@ def draw_fence(frame, zone):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
 
-def process_frame(model, frame, frame_count, alert_cooldown):
+def detect_night_motion(frame, motion_state):
+    """Return (is_low_light, motion_ratio) using brightness and frame change."""
+    import numpy as np
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    is_low_light = float(np.mean(gray)) < NIGHT_LUMA_THRESHOLD
+
+    previous = motion_state.get("previous_gray")
+    motion_state["previous_gray"] = gray
+    if previous is None:
+        return is_low_light, 0.0
+
+    difference = cv2.absdiff(previous, gray)
+    _, changed = cv2.threshold(difference, 25, 255, cv2.THRESH_BINARY)
+    changed = cv2.morphologyEx(changed, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    changed = cv2.dilate(changed, np.ones((5, 5), np.uint8), iterations=1)
+    return is_low_light, float(np.count_nonzero(changed)) / changed.size
+
+
+def process_frame(model, frame, frame_count, alert_cooldown, motion_state=None):
     """Runs detection on a single frame, draws boxes, checks fence, returns annotated frame."""
+    if motion_state is None:
+        motion_state = {}
+
+    is_low_light, motion_ratio = detect_night_motion(frame, motion_state)
+    if is_low_light and motion_ratio >= MOTION_PIXEL_THRESHOLD:
+        last_alert_time = motion_state.get("last_night_alert", 0)
+        if time.time() - last_alert_time > NIGHT_ALERT_COOLDOWN:
+            log_alert("NIGHT_MOVEMENT", "unknown", motion_ratio, frame)
+            motion_state["last_night_alert"] = time.time()
+
     results = model(frame, verbose=False)[0]
     draw_fence(frame, VIRTUAL_FENCE_ZONE)
+
+    light_label = "NIGHT / MOVEMENT" if is_low_light and motion_ratio >= MOTION_PIXEL_THRESHOLD else \
+        ("NIGHT / CLEAR" if is_low_light else "DAY")
+    light_color = (0, 165, 255) if is_low_light else (255, 255, 255)
+    cv2.putText(frame, f"MODE: {light_label}", (20, 35),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.75, light_color, 2)
 
     for box in results.boxes:
         cls_id = int(box.cls[0])
@@ -115,6 +154,7 @@ def run():
 
     frame_count = 0
     alert_cooldown = {}
+    motion_state = {}
     print("Press 'q' to quit the preview window.")
 
     while True:
@@ -127,7 +167,7 @@ def run():
         if frame_count % 3 != 0:   # skip frames to keep things fast (process ~1 of every 3)
             continue
 
-        annotated = process_frame(model, frame, frame_count, alert_cooldown)
+        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state)
         cv2.imshow("IBVAP Prototype - Border Video Analytics", annotated)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
