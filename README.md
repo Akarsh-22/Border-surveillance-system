@@ -1,3 +1,6 @@
+<<<<<<< HEAD
+# Border-surveillance-system
+=======
 <div align="center">
 
 # 🛡️ IBVAP
@@ -190,3 +193,4 @@ This project is licensed under the MIT License.
 
 
 </div>
+>>>>>>> 0e0a59a5e78392cebce2e8962b615db9340359aa
