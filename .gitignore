@@ -1,0 +1,9 @@
+venv/
+runs/
+snapshots/
+uploads/
+*.pt
+alerts.csv
+__pycache__/
+*.zip
+*.pyc
