@@ -7,3 +7,4 @@ lap
 fastapi
 uvicorn[standard]
 python-multipart
+fast-alpr

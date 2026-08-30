@@ -44,6 +44,8 @@ VIRTUAL_FENCE_ZONE = [(400, 200), (900, 200), (900, 600), (400, 600)]
 
 # Classes we care about (COCO class ids): 0=person, 2=car, 3=motorcycle, 5=bus, 7=truck
 TARGET_CLASSES = {0: "person", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+VEHICLE_CLASSES = {"car", "motorcycle", "bus", "truck"}
+PLATE_ALERT_COOLDOWN = 8
 FACE_DETECTOR = None
 FACE_RECOGNIZER = None
 
@@ -163,10 +165,13 @@ def recognize_face(frame, detection, people):
     return best_person if best_score >= FACE_MATCH_THRESHOLD else None
 
 
-def process_frame(model, frame, frame_count, alert_cooldown, motion_state=None, authorized_people=None):
+def process_frame(model, frame, frame_count, alert_cooldown, motion_state=None,
+                  authorized_people=None, alpr_model=None, plate_cooldown=None):
     """Runs detection on a single frame, draws boxes, checks fence, returns annotated frame."""
     if motion_state is None:
         motion_state = {}
+    if plate_cooldown is None:
+        plate_cooldown = {}
 
     is_low_light, motion_ratio = detect_night_motion(frame, motion_state)
     if is_low_light and motion_ratio >= MOTION_PIXEL_THRESHOLD:
@@ -248,6 +253,16 @@ def process_frame(model, frame, frame_count, alert_cooldown, motion_state=None, 
         cv2.putText(frame, f"{display_label} {conf:.2f}", (x1, y1 - 8),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         cv2.circle(frame, center, 4, color, -1)
+
+        if alpr_model is not None and label in VEHICLE_CLASSES:
+            from alpr import detect_plates_in_region, draw_plates
+            plates = detect_plates_in_region(alpr_model, frame, (x1, y1, x2, y2))
+            draw_plates(frame, plates)
+            for plate in plates:
+                last_plate_time = plate_cooldown.get(plate["text"], 0)
+                if time.time() - last_plate_time > PLATE_ALERT_COOLDOWN:
+                    log_alert("PLATE_DETECTED", plate["text"], plate["ocr_confidence"], frame)
+                    plate_cooldown[plate["text"]] = time.time()
 
     return frame
 

@@ -11,6 +11,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
+try:
+    from alpr import get_alpr
+except ImportError:
+    get_alpr = None
 
 from detector import (
     ALERT_LOG_FILE, MODEL_NAME, detect_faces, ensure_dirs, face_embedding,
@@ -33,6 +37,13 @@ def load_model():
     return YOLO(MODEL_NAME)
 
 
+@st.cache_resource
+def load_alpr():
+    if get_alpr is None:
+        return None
+    return get_alpr()
+
+
 def save_upload(uploaded_file):
     data = uploaded_file.getvalue()
     digest = hashlib.sha256(data).hexdigest()[:10]
@@ -50,7 +61,7 @@ def show_alerts():
         st.dataframe(alerts.tail(10).iloc[::-1], width="stretch")
 
 
-def analyze_video(video_path, model, video_placeholder, progress_placeholder):
+def analyze_video(video_path, model, alpr_model, video_placeholder, progress_placeholder):
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         st.error(f"Could not open video: {video_path.name}")
@@ -60,6 +71,7 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
     frame_count = 0
     alert_cooldown = {}
     motion_state = {}
+    plate_cooldown = {}
     authorized_people = load_authorized_people()
     while True:
         ret, frame = cap.read()
@@ -68,7 +80,8 @@ def analyze_video(video_path, model, video_placeholder, progress_placeholder):
         frame_count += 1
         if frame_count % 3 != 0:
             continue
-        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state, authorized_people)
+        annotated = process_frame(model, frame, frame_count, alert_cooldown, motion_state,
+                                  authorized_people, alpr_model, plate_cooldown)
         video_placeholder.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), width="stretch")
         if total_frames:
             progress_placeholder.progress(min(frame_count / total_frames, 1.0), text=f"{video_path.name}: frame {frame_count}/{total_frames}")
@@ -130,6 +143,11 @@ if not video_paths:
     st.info("Upload one or more videos in the sidebar to begin.")
 else:
     selected_name = st.sidebar.selectbox("Video to analyze", list(video_paths))
+    enable_alpr = st.sidebar.checkbox("Enable ANPR / plate reading", value=False,
+                                      disabled=get_alpr is None,
+                                      help="Slower; runs ALPR only on detected vehicles.")
+    if get_alpr is None:
+        st.sidebar.caption("Install fast-alpr to enable ANPR.")
     analyze_selected = st.sidebar.button("Analyze selected video", type="primary")
     analyze_all = st.sidebar.button("Analyze all uploaded videos")
     st.subheader("Live Feed")
@@ -137,8 +155,9 @@ else:
     progress_placeholder = st.empty()
     if analyze_selected or analyze_all:
         model = load_model()
+        alpr_model = load_alpr() if enable_alpr else None
         paths = ([video_paths[name] for name in uploaded_names] or [DEFAULT_VIDEO]) if analyze_all else [video_paths[selected_name]]
         for path in paths:
-            analyze_video(path, model, video_placeholder, progress_placeholder)
+            analyze_video(path, model, alpr_model, video_placeholder, progress_placeholder)
     st.subheader("🚨 Recent Alerts")
     show_alerts()
