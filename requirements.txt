@@ -8,3 +8,9 @@ fastapi
 uvicorn[standard]
 python-multipart
 fast-alpr
+opencv-python-headless<5
+onnxruntime
+fast-plate-ocr
+open-image-models
+rich
+tqdm
