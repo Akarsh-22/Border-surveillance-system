@@ -9,3 +9,4 @@ streamlit
 >>>>>>> 0e0a59a5e78392cebce2e8962b615db9340359aa
 numpy
 pandas
+fast-alpr
