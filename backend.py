@@ -35,6 +35,10 @@ from detector import (
     VIDEO_SOURCE, MODEL_NAME, ALERT_LOG_FILE,
     load_authorized_people, process_frame, ensure_dirs,
 )
+try:
+    from alpr import get_alpr
+except ImportError:
+    get_alpr = None
 
 app = FastAPI(title="IBVAP API")
 
@@ -64,7 +68,7 @@ VIDEO_STATE = {}
 
 def get_state(video_id: str):
     if video_id not in VIDEO_STATE:
-        VIDEO_STATE[video_id] = {"alert_cooldown": {}, "motion_state": {}}
+        VIDEO_STATE[video_id] = {"alert_cooldown": {}, "motion_state": {}, "plate_cooldown": {}}
     return VIDEO_STATE[video_id]
 
 
@@ -90,7 +94,7 @@ async def upload_video(file: UploadFile = File(...)):
         f.write(await file.read())
 
     VIDEO_REGISTRY[video_id] = {"path": save_path, "name": file.filename}
-    VIDEO_STATE[video_id] = {"alert_cooldown": {}, "motion_state": {}}
+    VIDEO_STATE[video_id] = {"alert_cooldown": {}, "motion_state": {}, "plate_cooldown": {}}
 
     cap = cv2.VideoCapture(save_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
@@ -111,7 +115,7 @@ def video_info(video_id: str):
 
 
 @app.get("/api/frame/{video_id}/{frame_idx}")
-def get_frame(video_id: str, frame_idx: int, log_alerts: bool = True):
+def get_frame(video_id: str, frame_idx: int, log_alerts: bool = True, anpr: bool = False):
     path = get_video_path(video_id)
     cap = cv2.VideoCapture(path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -125,7 +129,11 @@ def get_frame(video_id: str, frame_idx: int, log_alerts: bool = True):
     cooldown = state["alert_cooldown"] if log_alerts else {}
     motion_state = state["motion_state"]
 
-    annotated = process_frame(MODEL, frame, frame_idx, cooldown, motion_state, load_authorized_people())
+    alpr_model = get_alpr() if anpr and get_alpr is not None else None
+    annotated = process_frame(
+        MODEL, frame, frame_idx, cooldown, motion_state,
+        load_authorized_people(), alpr_model, state["plate_cooldown"],
+    )
 
     ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
     if not ok:
@@ -159,8 +167,12 @@ def model_info():
     return {
         "model_name": MODEL_NAME,
         "features": {
+            "human_vehicle_detection": True,
+            "object_tracking": True,
+            "face_authorization": True,
             "virtual_fence_intrusion": True,
             "night_motion_detection": True,
+            "anpr": get_alpr is not None,
         },
     }
 
