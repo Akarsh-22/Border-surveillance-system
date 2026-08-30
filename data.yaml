@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-train: train/images
-val: valid/images
-test: test/images
-=======
 train: ../train/images
 val: ../valid/images
 test: ../test/images
->>>>>>> 0e0a59a5e78392cebce2e8962b615db9340359aa
 
 nc: 3
 names: ['fence', 'person-climbing-fence', 'person-standing']

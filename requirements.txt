@@ -1,12 +1,16 @@
-opencv-python
+opencv-python<5
 ultralytics
-<<<<<<< HEAD
+streamlit
+numpy
+pandas
+lap
 fastapi
 uvicorn[standard]
 python-multipart
-=======
-streamlit
->>>>>>> 0e0a59a5e78392cebce2e8962b615db9340359aa
-numpy
-pandas
 fast-alpr
+opencv-python-headless<5
+onnxruntime
+fast-plate-ocr
+open-image-models
+rich
+tqdm
